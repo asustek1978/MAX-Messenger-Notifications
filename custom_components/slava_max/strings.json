@@ -1,107 +1,111 @@
 {
-  "title": "Slava MAX",
+  "title": "MAX Messenger Notifications",
   "config": {
     "step": {
       "user": {
-        "title": "Connect Slava MAX",
-        "description": "Connect a MAX bot to Home Assistant.",
+        "title": "Подключение MAX Messenger Notifications",
+        "description": "Подключение бота MAX к Home Assistant.",
         "data": {
-          "token": "Bot token",
-          "target_type": "Default recipient type",
-          "target_id": "Default recipient ID",
-          "polling": "Receive MAX messages and button callbacks",
-          "allowed_users": "Allowed user IDs (legacy format)"
+          "token": "Токен бота",
+          "target_type": "Тип получателя по умолчанию",
+          "target_id": "ID получателя по умолчанию",
+          "polling": "Получать сообщения и нажатия кнопок",
+          "allowed_users": "Разрешённые user_id (старый формат)",
+          "emergency_chat_id": "ID аварийного канала MAX"
         }
       }
     },
     "error": {
-      "cannot_connect": "Unable to connect to the MAX API",
-      "invalid_auth": "MAX rejected the bot token"
+      "cannot_connect": "Не удалось подключиться к MAX API",
+      "invalid_auth": "MAX отклонил токен",
+      "invalid_chat_id": "Укажите корректный числовой ID канала MAX"
     },
     "abort": {
-      "already_configured": "This MAX bot is already configured"
+      "already_configured": "Этот бот MAX уже настроен"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Slava MAX settings",
+        "title": "Настройки MAX Messenger Notifications",
         "menu_options": {
-          "general": "General settings",
-          "users": "Users and permissions"
+          "general": "Основные настройки",
+          "users": "Пользователи и права"
         }
       },
       "general": {
-        "title": "General settings",
+        "title": "Основные настройки",
         "data": {
-          "target_type": "Default recipient type",
-          "target_id": "Default recipient ID",
-          "polling": "Receive MAX events",
-          "allowed_users": "Allowed user IDs (legacy format)"
+          "target_type": "Тип получателя по умолчанию",
+          "target_id": "ID получателя по умолчанию",
+          "polling": "Получать события MAX",
+          "allowed_users": "Разрешённые user_id (старый формат)",
+          "emergency_chat_id": "ID аварийного канала MAX"
         }
       },
       "users": {
-        "title": "Users and permissions",
-        "description": "Users: {count}. Current: {users}",
+        "title": "Пользователи и права",
+        "description": "Пользователей: {count}. Сейчас: {users}",
         "menu_options": {
-          "add_detected_user": "Add a detected user",
-          "add_user": "Add a user manually",
-          "edit_user": "Edit a user",
-          "delete_user": "Delete a user"
+          "add_detected_user": "Добавить обнаруженного пользователя",
+          "add_user": "Добавить пользователя вручную",
+          "edit_user": "Изменить пользователя",
+          "delete_user": "Удалить пользователя"
         }
       },
       "add_detected_user": {
-        "title": "Detected users",
+        "title": "Обнаруженные пользователи",
         "data": {
-          "user_id": "User"
+          "user_id": "Пользователь"
         }
       },
       "add_detected_user_details": {
-        "title": "Add user",
+        "title": "Добавить пользователя",
         "description": "MAX user_id: {user_id}",
         "data": {
-          "name": "Name",
-          "enabled": "Access enabled",
-          "permissions": "Permissions"
+          "name": "Имя",
+          "enabled": "Доступ включён",
+          "permissions": "Права"
         }
       },
       "add_user": {
-        "title": "Add user",
+        "title": "Добавить пользователя",
         "data": {
           "user_id": "MAX user_id",
-          "name": "Name",
-          "enabled": "Access enabled",
-          "permissions": "Permissions"
+          "name": "Имя",
+          "enabled": "Доступ включён",
+          "permissions": "Права"
         }
       },
       "edit_user": {
-        "title": "Edit user",
+        "title": "Изменить пользователя",
         "data": {
-          "user_id": "User"
+          "user_id": "Пользователь"
         }
       },
       "edit_user_details": {
-        "title": "User permissions",
+        "title": "Права пользователя",
         "description": "MAX user_id: {user_id}",
         "data": {
-          "name": "Name",
-          "enabled": "Access enabled",
-          "permissions": "Permissions"
+          "name": "Имя",
+          "enabled": "Доступ включён",
+          "permissions": "Права"
         }
       },
       "delete_user": {
-        "title": "Delete user",
+        "title": "Удалить пользователя",
         "data": {
-          "user_id": "User"
+          "user_id": "Пользователь"
         }
       },
       "delete_user_confirm": {
-        "title": "Delete user",
-        "description": "Delete {name} ({user_id})?"
+        "title": "Удалить пользователя",
+        "description": "Удалить {name} ({user_id})?"
       }
     },
     "error": {
-      "user_exists": "This user has already been added"
+      "user_exists": "Такой пользователь уже добавлен",
+      "invalid_chat_id": "Укажите корректный числовой ID канала MAX"
     }
   }
 }
