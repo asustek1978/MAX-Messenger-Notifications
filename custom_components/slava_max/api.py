@@ -239,6 +239,7 @@ class SlavaMaxApi:
             "payload": {"token": token},
         }
 
+        # MAX may need a moment to finish image processing.
         delays = (0.8, 1.5, 3.0)
         last_error: SlavaMaxApiError | None = None
 
@@ -273,6 +274,7 @@ class SlavaMaxApi:
         filename: str,
         content_type: str = "image/jpeg",
     ) -> str:
+        """Upload image bytes to MAX and return an attachment token."""
         upload_info = await self._request(
             "POST",
             "/uploads",
@@ -348,11 +350,13 @@ class SlavaMaxApi:
         buttons: list[list[dict[str, Any]]] | None = None,
         disable_link_preview: bool = False,
     ) -> dict[str, Any]:
+        """Send an already uploaded MAX video token."""
         attachment = {
             "type": "video",
             "payload": {"token": token},
         }
 
+        # Video processing can take a little longer than image processing.
         delays = (1.0, 2.0, 4.0, 7.0)
         last_error: SlavaMaxApiError | None = None
 
@@ -387,6 +391,7 @@ class SlavaMaxApi:
         filename: str,
         content_type: str = "video/mp4",
     ) -> str:
+        """Upload video bytes to MAX and return an attachment token."""
         upload_info = await self._request(
             "POST",
             "/uploads",
@@ -399,6 +404,7 @@ class SlavaMaxApi:
                 "MAX API не вернул URL для загрузки видео"
             )
 
+        # For video MAX normally returns the token together with upload URL.
         token = _find_token(upload_info) or _token_from_url(upload_url)
 
         form = aiohttp.FormData()
