@@ -1,22 +1,24 @@
 {
-  "title": "Slava MAX",
+  "title": "MAX Messenger Notifications",
   "config": {
     "step": {
       "user": {
-        "title": "Подключение Slava MAX",
+        "title": "Подключение MAX Messenger Notifications",
         "description": "Подключение бота MAX к Home Assistant.",
         "data": {
           "token": "Токен бота",
           "target_type": "Тип получателя по умолчанию",
           "target_id": "ID получателя по умолчанию",
           "polling": "Получать сообщения и нажатия кнопок",
-          "allowed_users": "Разрешённые user_id (старый формат)"
+          "allowed_users": "Разрешённые user_id (старый формат)",
+          "emergency_chat_id": "ID аварийного канала MAX"
         }
       }
     },
     "error": {
       "cannot_connect": "Не удалось подключиться к MAX API",
-      "invalid_auth": "MAX отклонил токен"
+      "invalid_auth": "MAX отклонил токен",
+      "invalid_chat_id": "Укажите корректный числовой ID канала MAX"
     },
     "abort": {
       "already_configured": "Этот бот MAX уже настроен"
@@ -25,7 +27,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Настройки Slava MAX",
+        "title": "Настройки MAX Messenger Notifications",
         "menu_options": {
           "general": "Основные настройки",
           "users": "Пользователи и права"
@@ -37,7 +39,8 @@
           "target_type": "Тип получателя по умолчанию",
           "target_id": "ID получателя по умолчанию",
           "polling": "Получать события MAX",
-          "allowed_users": "Разрешённые user_id (старый формат)"
+          "allowed_users": "Разрешённые user_id (старый формат)",
+          "emergency_chat_id": "ID аварийного канала MAX"
         }
       },
       "users": {
@@ -101,7 +104,8 @@
       }
     },
     "error": {
-      "user_exists": "Такой пользователь уже добавлен"
+      "user_exists": "Такой пользователь уже добавлен",
+      "invalid_chat_id": "Укажите корректный числовой ID канала MAX"
     }
   }
 }
