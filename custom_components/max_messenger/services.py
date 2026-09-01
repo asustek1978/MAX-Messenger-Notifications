@@ -13,6 +13,7 @@ from homeassistant.helpers import config_validation as cv
 
 from .api import MaxMessengerApi, MaxMessengerApiError
 from .const import (
+    CONF_EMERGENCY_CHAT_ID,
     CONF_TARGET_ID,
     CONF_TARGET_TYPE,
     DOMAIN,
@@ -20,6 +21,8 @@ from .const import (
     SERVICE_BROADCAST,
     SERVICE_BROADCAST_IMAGE,
     SERVICE_BROADCAST_VIDEO,
+    SERVICE_SEND_EMERGENCY,
+    SERVICE_SEND_EMERGENCY_IMAGE,
     SERVICE_SEND_IMAGE,
     SERVICE_SEND_MESSAGE,
     SERVICE_SEND_VIDEO,
@@ -99,6 +102,21 @@ BROADCAST_MEDIA_SCHEMA = vol.Schema(
     }
 )
 
+EMERGENCY_SCHEMA = vol.Schema(
+    {
+        **COMMON_SEND,
+        vol.Required(ATTR_TEXT): cv.string,
+    }
+)
+
+EMERGENCY_MEDIA_SCHEMA = vol.Schema(
+    {
+        **COMMON_SEND,
+        vol.Required(ATTR_FILE_PATH): cv.string,
+        vol.Optional(ATTR_TEXT, default=""): cv.string,
+    }
+)
+
 ANSWER_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
@@ -139,6 +157,18 @@ def _resolve_single_target(call: ServiceCall, cfg: dict[str, Any]) -> tuple[str,
     if user_id is not None:
         return "user_id", int(user_id)
     return str(cfg[CONF_TARGET_TYPE]), int(cfg[CONF_TARGET_ID])
+
+
+def _emergency_chat_id(cfg: dict[str, Any]) -> int:
+    value = cfg.get(CONF_EMERGENCY_CHAT_ID)
+    if value is None or str(value).strip() == "":
+        raise HomeAssistantError(
+            "Emergency MAX channel is not configured. Open integration options and set emergency_chat_id."
+        )
+    try:
+        return int(value)
+    except (TypeError, ValueError) as err:
+        raise HomeAssistantError("Invalid emergency_chat_id in MAX Messenger Notifications settings") from err
 
 
 def _broadcast_targets(cfg: dict[str, Any], call: ServiceCall) -> list[tuple[str, int]]:
@@ -201,6 +231,23 @@ async def register_services(hass: HomeAssistant) -> None:
         except MaxMessengerApiError as err:
             raise HomeAssistantError(str(err)) from err
 
+    async def send_emergency(call: ServiceCall) -> None:
+        runtime = _entry_runtime(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
+        api: MaxMessengerApi = runtime["api"]
+        target_id = _emergency_chat_id(settings(runtime["entry"]))
+        try:
+            await api.send_message(
+                text=call.data[ATTR_TEXT],
+                target_type="chat_id",
+                target_id=target_id,
+                fmt=_fmt(call),
+                notify=call.data[ATTR_NOTIFY],
+                buttons=call.data.get(ATTR_BUTTONS),
+                disable_link_preview=call.data[ATTR_DISABLE_LINK_PREVIEW],
+            )
+        except MaxMessengerApiError as err:
+            raise HomeAssistantError(str(err)) from err
+
     async def broadcast(call: ServiceCall) -> None:
         runtime = _entry_runtime(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
         api: MaxMessengerApi = runtime["api"]
@@ -231,6 +278,26 @@ async def register_services(hass: HomeAssistant) -> None:
                 token=token,
                 text=call.data[ATTR_TEXT],
                 target_type=target_type,
+                target_id=target_id,
+                fmt=_fmt(call),
+                notify=call.data[ATTR_NOTIFY],
+                buttons=call.data.get(ATTR_BUTTONS),
+                disable_link_preview=call.data[ATTR_DISABLE_LINK_PREVIEW],
+            )
+        except MaxMessengerApiError as err:
+            raise HomeAssistantError(str(err)) from err
+
+    async def send_emergency_image(call: ServiceCall) -> None:
+        runtime = _entry_runtime(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
+        api: MaxMessengerApi = runtime["api"]
+        target_id = _emergency_chat_id(settings(runtime["entry"]))
+        data, filename, content_type = await _read_media(hass, call.data[ATTR_FILE_PATH], "image")
+        try:
+            token = await api.upload_image(data=data, filename=filename, content_type=content_type)
+            await api.send_image_token(
+                token=token,
+                text=call.data[ATTR_TEXT],
+                target_type="chat_id",
                 target_id=target_id,
                 fmt=_fmt(call),
                 notify=call.data[ATTR_NOTIFY],
@@ -322,8 +389,10 @@ async def register_services(hass: HomeAssistant) -> None:
 
     definitions = (
         (SERVICE_SEND_MESSAGE, send_message, SEND_SCHEMA),
+        (SERVICE_SEND_EMERGENCY, send_emergency, EMERGENCY_SCHEMA),
         (SERVICE_BROADCAST, broadcast, BROADCAST_SCHEMA),
         (SERVICE_SEND_IMAGE, send_image, SEND_MEDIA_SCHEMA),
+        (SERVICE_SEND_EMERGENCY_IMAGE, send_emergency_image, EMERGENCY_MEDIA_SCHEMA),
         (SERVICE_BROADCAST_IMAGE, broadcast_image, BROADCAST_MEDIA_SCHEMA),
         (SERVICE_SEND_VIDEO, send_video, SEND_MEDIA_SCHEMA),
         (SERVICE_BROADCAST_VIDEO, broadcast_video, BROADCAST_MEDIA_SCHEMA),
