@@ -5,6 +5,7 @@ CONF_TARGET_TYPE = "target_type"
 CONF_TARGET_ID = "target_id"
 CONF_POLLING = "polling"
 CONF_ALLOWED_USERS = "allowed_users"
+CONF_EMERGENCY_CHAT_ID = "emergency_chat_id"
 
 # Multi-user access control
 CONF_USERS = "users"
@@ -56,6 +57,8 @@ SERVICE_SEND_IMAGE = "send_image"
 SERVICE_BROADCAST_IMAGE = "broadcast_image"
 SERVICE_SEND_VIDEO = "send_video"
 SERVICE_BROADCAST_VIDEO = "broadcast_video"
+SERVICE_SEND_EMERGENCY = "send_emergency"
+SERVICE_SEND_EMERGENCY_IMAGE = "send_emergency_image"
 
-# Current MAX API domain since July 2026.
+# Актуальный домен MAX API с июля 2026.
 API_BASE = "https://platform-api2.max.ru"
