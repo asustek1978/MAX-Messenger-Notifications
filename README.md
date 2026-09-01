@@ -6,7 +6,7 @@
 
 Неофициальная интеграция Home Assistant для ботов **MAX Messenger**.
 
-> Текущая совместимая версия: **0.6.2**
+> Текущая совместимая версия: **0.6.3**
 
 ## Важно о совместимости
 
@@ -27,6 +27,7 @@ slava_max
 - фоновый Long Polling;
 - отдельный аварийный канал MAX;
 - аварийные сообщения и изображения без указания `chat_id` в каждой автоматизации;
+- локальная иконка интеграции для Home Assistant;
 - blueprint камеры с режимами Фото / Видео / Фото + видео.
 
 ## Установка через HACS
@@ -103,6 +104,15 @@ blueprints/automation/slava_max/camera_snapshot_max.yaml
 ```
 
 Он использует действия `slava_max.broadcast_image` и `slava_max.broadcast_video`.
+
+## Иконка интеграции
+
+Начиная с 0.6.3 в интеграции присутствуют локальные brand-файлы:
+
+```text
+custom_components/slava_max/brand/icon.png
+custom_components/slava_max/brand/icon@2x.png
+```
 
 ## События
 
