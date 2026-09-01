@@ -53,6 +53,49 @@ send_message:
       selector:
         object:
 
+send_emergency:
+  name: Отправить аварийное сообщение
+  description: Отправляет сообщение в аварийный канал MAX, заданный в настройках MAX Messenger Notifications.
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: slava_max
+    message:
+      name: Аварийное сообщение
+      required: true
+      selector:
+        text:
+          multiline: true
+    format:
+      name: Формат
+      required: false
+      default: markdown
+      selector:
+        select:
+          options:
+            - markdown
+            - html
+            - plain
+    notify:
+      name: Уведомлять
+      required: false
+      default: true
+      selector:
+        boolean:
+    disable_link_preview:
+      name: Отключить превью ссылок
+      required: false
+      default: false
+      selector:
+        boolean:
+    buttons:
+      name: Кнопки
+      required: false
+      selector:
+        object:
+
 broadcast:
   name: Рассылка сообщения
   description: Отправляет текст нескольким разрешённым пользователям MAX.
@@ -113,7 +156,7 @@ send_image:
           integration: slava_max
     file_path:
       name: Путь к изображению
-      description: Например /media/slava_max_camera_latest.jpg
+      description: Например /media/slava_max_podezd_latest.jpg
       required: true
       selector:
         text:
@@ -160,6 +203,52 @@ send_image:
       selector:
         object:
 
+send_emergency_image:
+  name: Отправить аварийное изображение
+  description: Загружает локальное изображение и отправляет его в аварийный канал MAX из настроек MAX Messenger Notifications.
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: slava_max
+    file_path:
+      name: Путь к изображению
+      description: Например /media/slava_max_emergency.jpg
+      required: true
+      selector:
+        text:
+    message:
+      name: Аварийное сообщение
+      required: false
+      default: ""
+      selector:
+        text:
+          multiline: true
+    format:
+      required: false
+      default: markdown
+      selector:
+        select:
+          options:
+            - markdown
+            - html
+            - plain
+    notify:
+      required: false
+      default: true
+      selector:
+        boolean:
+    disable_link_preview:
+      required: false
+      default: false
+      selector:
+        boolean:
+    buttons:
+      required: false
+      selector:
+        object:
+
 broadcast_image:
   name: Рассылка изображения
   description: Загружает локальное изображение и отправляет разрешённым пользователям MAX.
@@ -171,7 +260,7 @@ broadcast_image:
           integration: slava_max
     file_path:
       name: Путь к изображению
-      description: Например /media/slava_max_camera_latest.jpg
+      description: Например /media/slava_max_podezd_latest.jpg
       required: true
       selector:
         text:
@@ -260,7 +349,7 @@ send_video:
           integration: slava_max
     file_path:
       name: Путь к видео
-      description: Например /media/slava_max_camera_latest.mp4
+      description: Например /media/slava_max_podezd_latest.mp4
       required: true
       selector:
         text:
@@ -322,7 +411,7 @@ broadcast_video:
           integration: slava_max
     file_path:
       name: Путь к видео
-      description: Например /media/slava_max_camera_latest.mp4
+      description: Например /media/slava_max_podezd_latest.mp4
       required: true
       selector:
         text:
