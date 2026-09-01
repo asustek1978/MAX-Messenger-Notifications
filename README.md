@@ -1,83 +1,61 @@
-# Slava MAX for Home Assistant
+<p align="center">
+  <img src="images/max-messenger-notifications.svg" width="300" alt="MAX Messenger Notifications">
+</p>
 
-Custom Home Assistant integration for **MAX Messenger** with notifications,
-camera photo/video delivery, multiple users, ACL permissions and callbacks.
+# MAX Messenger Notifications for Home Assistant
 
-> Current public release: **0.5.5**
+Неофициальная интеграция Home Assistant для ботов **MAX Messenger**.
 
-## English
+> Текущая совместимая версия: **0.6.2**
 
-### Features
+## Важно о совместимости
 
-- Home Assistant → MAX text notifications
-- photo upload and delivery
-- video upload and delivery
-- camera blueprint with **Photo + video / Photo only / Video only**
-- configurable automation triggers and conditions
-- multiple MAX users
-- per-user permissions configured from the Home Assistant UI
-- `/start` and callback handling through long polling
-- callback events for optional custom bot controls
-- services for direct delivery and ACL-aware broadcast
-- background polling that does not block Home Assistant startup
-
-### Installation with HACS
-
-This repository can be added as a **Custom repository** in HACS:
-
-1. Open HACS.
-2. Open the menu and choose **Custom repositories**.
-3. Add this repository as category **Integration**.
-4. Install **Slava MAX**.
-5. Restart Home Assistant.
-6. Go to **Settings → Devices & services → Add integration → Slava MAX**.
-7. Enter your MAX bot token in the Home Assistant UI.
-
-The bot token is not stored in YAML and should never be committed to GitHub.
-
-### Manual installation
-
-Copy:
+Начиная с 0.6.2 проект называется **MAX Messenger Notifications**, но внутренний домен Home Assistant намеренно сохранён:
 
 ```text
-custom_components/slava_max
+slava_max
 ```
 
-to:
+Это сделано для полной обратной совместимости. Существующие автоматизации и действия `slava_max.*` продолжат работать без изменений.
+
+## Возможности
+
+- текстовые уведомления Home Assistant → MAX;
+- отправка фото и видео;
+- несколько пользователей и ACL-права;
+- callback-кнопки;
+- фоновый Long Polling;
+- отдельный аварийный канал MAX;
+- аварийные сообщения и изображения без указания `chat_id` в каждой автоматизации;
+- blueprint камеры с режимами Фото / Видео / Фото + видео.
+
+## Установка через HACS
+
+Добавьте этот репозиторий как **Custom repository → Integration**:
 
 ```text
-/config/custom_components/slava_max
+https://github.com/asustek1978/MAX-Messenger-Notifications
 ```
 
-Restart Home Assistant and add **Slava MAX** from **Settings → Devices & services**.
+Установите **MAX Messenger Notifications** и перезапустите Home Assistant.
 
-### Camera blueprint
+## Ручная установка
 
-Blueprint file:
+Скопируйте:
 
 ```text
-blueprints/automation/slava_max/camera_snapshot_max.yaml
+custom_components/slava_max/
 ```
 
-It can send:
-
-- photo + video;
-- photo only;
-- video only.
-
-The trigger is not hard-coded. You can use a motion sensor, camera person
-detection, a doorbell, a door contact, or any other Home Assistant trigger.
-
-For video, the selected camera must support `camera.record`.
-
-Default media paths are:
+в:
 
 ```text
-/media/slava_max_camera_latest.jpg
-/media/slava_max_camera_latest.mp4
+/config/custom_components/slava_max/
 ```
 
-### Services
+После этого полностью перезапустите Home Assistant.
+
+## Основные действия
 
 ```text
 slava_max.send_message
@@ -86,139 +64,59 @@ slava_max.send_image
 slava_max.broadcast_image
 slava_max.send_video
 slava_max.broadcast_video
+slava_max.send_emergency
+slava_max.send_emergency_image
 slava_max.answer_callback
 ```
 
-Broadcast services use the Slava MAX ACL. Leaving `user_ids` empty sends to
-all enabled users that have the required permissions.
+### Аварийный канал
 
-### Callbacks
+В Home Assistant откройте:
 
-The integration exposes MAX callback updates as Home Assistant events, so you
-can build your own bot controls and menus. A complete smart-home menu/router
-is installation-specific and is not part of this camera-notification project.
+**Настройки → Устройства и службы → MAX Messenger Notifications → Настроить → Основные настройки**
 
-### Permissions
+и укажите **ID аварийного канала MAX**.
 
-The integration supports per-user permissions such as:
+После этого аварийное сообщение отправляется без `chat_id`:
 
-- `notifications`
-- `lights`
-- `climate`
-- `devices`
-- `water`
-- `vacuum`
-- `braga`
-- `braga_emergency`
-- `status`
-- `intercom`
-- `intercom_open`
-- `cameras`
-- `scenes`
-
-### Security
-
-- keep the MAX bot token private;
-- unknown MAX users do not automatically receive smart-home access;
-- permissions are checked before ACL broadcasts/control commands;
-- sensitive actions can use separate permissions.
-
----
-
-## Русский
-
-### Возможности
-
-- уведомления Home Assistant → MAX;
-- отправка фотографий;
-- отправка видео;
-- blueprint камеры с режимами **Фото + видео / Фото / Видео**;
-- произвольные триггеры и условия Home Assistant;
-- несколько пользователей MAX;
-- индивидуальные права пользователей через UI Home Assistant;
-- `/start` и callback-события через Long Polling;
-- события callback для собственных кнопок и меню бота;
-- прямая отправка и рассылка с проверкой ACL;
-- фоновый polling, который не задерживает запуск Home Assistant.
-
-### Установка через HACS
-
-Добавьте этот репозиторий в HACS как **Custom repository** категории
-**Integration**, установите **Slava MAX**, перезапустите Home Assistant и
-добавьте интеграцию через:
-
-**Настройки → Устройства и службы → Добавить интеграцию → Slava MAX**
-
-Токен MAX-бота вводится только через UI Home Assistant. Не храните его в
-YAML и не публикуйте в GitHub.
-
-### Ручная установка
-
-Скопируйте:
-
-```text
-custom_components/slava_max
+```yaml
+action: slava_max.send_emergency
+data:
+  message: "🚨 Аварийное уведомление"
 ```
 
-в:
+Аварийное изображение:
 
-```text
-/config/custom_components/slava_max
+```yaml
+action: slava_max.send_emergency_image
+data:
+  file_path: /media/emergency.jpg
+  message: "🚨 Авария — снимок камеры"
 ```
 
-и полностью перезапустите Home Assistant.
+## Blueprint камеры
 
-### Blueprint камеры
-
-Файл:
+Совместимый blueprint находится здесь:
 
 ```text
 blueprints/automation/slava_max/camera_snapshot_max.yaml
 ```
 
-Поддерживаются режимы:
+Он использует действия `slava_max.broadcast_image` и `slava_max.broadcast_video`.
 
-- Фото + видео;
-- Фото;
-- Видео.
+## События
 
-Триггер не привязан к конкретной камере или датчику. Можно выбрать движение,
-обнаружение человека, домофон, открытие двери или любой другой триггер.
-
-Для видео камера должна поддерживать `camera.record`.
-
-### Получатели
-
-Поле `MAX recipients / Получатели MAX` можно оставить пустым. Тогда рассылка
-идёт всем включённым пользователям, у которых есть `notifications` и
-дополнительное право, например `cameras`.
-
-Несколько `user_id` указываются через запятую:
+Для обратной совместимости сохранены события:
 
 ```text
-123456789, 987654321
+slava_max_event
+slava_max_access_request
 ```
 
-### Callback и собственное меню
+## Безопасность
 
-Интеграция передаёт callback MAX в события Home Assistant. На их основе можно
-сделать собственное меню управления. Готовый роутер конкретного умного дома в
-этот публичный проект камеры не входит.
-
-## Repository structure
-
-```text
-custom_components/slava_max/     Home Assistant integration
-blueprints/automation/slava_max/ Camera automation blueprint
-docs/community_post.md           Ready-to-use Home Assistant Community post
-examples/                         Example automations
-```
-
-## Disclaimer
-
-This is a community project and is not an official Home Assistant or MAX
-integration.
+Не публикуйте токен MAX-бота, пароли, секреты Home Assistant и приватные URL в публичном репозитории.
 
 ## License
 
-MIT License.
+MIT License. See [LICENSE](LICENSE).
