@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">MAX Messenger Notifications</title>
+  <desc id="desc">Smart home messaging and notification icon</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b63f6"/>
+      <stop offset="0.55" stop-color="#064ac6"/>
+      <stop offset="1" stop-color="#08246f"/>
+    </linearGradient>
+    <radialGradient id="lens" cx="42%" cy="34%" r="68%">
+      <stop offset="0" stop-color="#3155b8"/>
+      <stop offset="0.48" stop-color="#172d78"/>
+      <stop offset="1" stop-color="#071540"/>
+    </radialGradient>
+    <linearGradient id="bell" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffbf32"/>
+      <stop offset="1" stop-color="#ff8a00"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#00143d" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+  <rect x="8" y="8" width="496" height="496" rx="94" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <path d="M105 354c-33-36-52-83-52-133C53 119 136 36 238 36s185 83 185 185c0 87-60 160-141 180" fill="none" stroke="#fff" stroke-width="35" stroke-linecap="round"/>
+    <path d="M83 342l58 7-19 55z" fill="#fff"/>
+    <path d="M130 276l108-101c9-8 22-8 31 0l54 50v-18c0-8 6-14 14-14h25c8 0 14 6 14 14v67l31 29c7 7 2 19-8 19h-31v86c0 10-8 18-18 18H159c-10 0-18-8-18-18v-86h-31c-11 0-16-13-8-20z" fill="#fff"/>
+    <g fill="#0a52d5">
+      <rect x="213" y="247" width="31" height="31" rx="5"/>
+      <rect x="259" y="247" width="31" height="31" rx="5"/>
+      <rect x="213" y="293" width="31" height="31" rx="5"/>
+      <rect x="259" y="293" width="31" height="31" rx="5"/>
+    </g>
+    <g>
+      <circle cx="252" cy="389" r="49" fill="#fff" stroke="#163c9f" stroke-width="6"/>
+      <circle cx="252" cy="389" r="35" fill="url(#lens)"/>
+      <circle cx="240" cy="376" r="7" fill="#fff" opacity="0.95"/>
+      <circle cx="267" cy="402" r="4" fill="#5b83e8" opacity="0.65"/>
+    </g>
+    <g transform="translate(323 79)">
+      <path d="M63 12c-25 0-45 20-45 45v29L2 106c-6 8 0 19 10 19h102c10 0 16-11 10-19l-16-20V57c0-25-20-45-45-45z" fill="#fff"/>
+      <path d="M63 20c-20 0-36 16-36 36v34l-14 18h100L99 90V56c0-20-16-36-36-36z" fill="url(#bell)"/>
+      <path d="M47 129c3 12 9 18 16 18s13-6 16-18z" fill="#ff9707" stroke="#fff" stroke-width="7"/>
+      <circle cx="101" cy="38" r="24" fill="#ff3b16" stroke="#fff" stroke-width="8"/>
+    </g>
+  </g>
+</svg>
