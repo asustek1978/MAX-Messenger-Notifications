@@ -53,6 +53,49 @@ send_message:
       selector:
         object:
 
+send_emergency:
+  name: Отправить аварийное сообщение
+  description: Отправляет текст в аварийный канал MAX, заданный в настройках интеграции.
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: max_messenger
+    message:
+      name: Аварийное сообщение
+      required: true
+      selector:
+        text:
+          multiline: true
+    format:
+      name: Формат
+      required: false
+      default: markdown
+      selector:
+        select:
+          options:
+            - markdown
+            - html
+            - plain
+    notify:
+      name: Уведомлять
+      required: false
+      default: true
+      selector:
+        boolean:
+    disable_link_preview:
+      name: Отключить превью ссылок
+      required: false
+      default: false
+      selector:
+        boolean:
+    buttons:
+      name: Кнопки
+      required: false
+      selector:
+        object:
+
 broadcast:
   name: Рассылка сообщения
   description: Отправляет текст нескольким разрешённым пользователям MAX.
@@ -136,6 +179,52 @@ send_image:
       selector:
         number:
           mode: box
+    format:
+      required: false
+      default: markdown
+      selector:
+        select:
+          options:
+            - markdown
+            - html
+            - plain
+    notify:
+      required: false
+      default: true
+      selector:
+        boolean:
+    disable_link_preview:
+      required: false
+      default: false
+      selector:
+        boolean:
+    buttons:
+      required: false
+      selector:
+        object:
+
+send_emergency_image:
+  name: Отправить аварийное изображение
+  description: Загружает локальное изображение и отправляет его в аварийный канал MAX из настроек интеграции.
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: max_messenger
+    file_path:
+      name: Путь к изображению
+      description: Например /media/max_messenger_emergency.jpg
+      required: true
+      selector:
+        text:
+    message:
+      name: Аварийное сообщение
+      required: false
+      default: ""
+      selector:
+        text:
+          multiline: true
     format:
       required: false
       default: markdown

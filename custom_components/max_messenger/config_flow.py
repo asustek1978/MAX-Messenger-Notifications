@@ -17,6 +17,7 @@ from .api import (
 )
 from .const import (
     CONF_ALLOWED_USERS,
+    CONF_EMERGENCY_CHAT_ID,
     CONF_POLLING,
     CONF_TARGET_ID,
     CONF_TARGET_TYPE,
@@ -88,6 +89,12 @@ def _normalize_users(value: Any) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _normalize_emergency_chat_id(value: Any) -> int | None:
+    if value is None or str(value).strip() == "":
+        return None
+    return int(str(value).strip())
+
+
 class MaxMessengerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -104,35 +111,46 @@ class MaxMessengerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            token = user_input[CONF_TOKEN].strip()
-            api = MaxMessengerApi(async_get_clientsession(self.hass), token)
-
             try:
-                me = await api.get_me()
-            except MaxMessengerAuthError:
-                errors["base"] = "invalid_auth"
-            except MaxMessengerApiError:
-                errors["base"] = "cannot_connect"
+                emergency_chat_id = _normalize_emergency_chat_id(
+                    user_input.get(CONF_EMERGENCY_CHAT_ID)
+                )
+            except (TypeError, ValueError):
+                errors[CONF_EMERGENCY_CHAT_ID] = "invalid_chat_id"
             else:
-                bot_id = str(me.get("user_id", token[-8:]))
-                await self.async_set_unique_id(bot_id)
-                self._abort_if_unique_id_configured()
+                token = user_input[CONF_TOKEN].strip()
+                api = MaxMessengerApi(async_get_clientsession(self.hass), token)
 
-                title = (
-                    me.get("first_name")
-                    or me.get("name")
-                    or me.get("username")
-                    or "MAX Messenger Notifications"
-                )
+                try:
+                    me = await api.get_me()
+                except MaxMessengerAuthError:
+                    errors["base"] = "invalid_auth"
+                except MaxMessengerApiError:
+                    errors["base"] = "cannot_connect"
+                else:
+                    bot_id = str(me.get("user_id", token[-8:]))
+                    await self.async_set_unique_id(bot_id)
+                    self._abort_if_unique_id_configured()
 
-                data = dict(user_input)
-                data[CONF_TOKEN] = token
-                data[CONF_TARGET_ID] = int(data[CONF_TARGET_ID])
+                    title = (
+                        me.get("first_name")
+                        or me.get("name")
+                        or me.get("username")
+                        or "MAX Messenger Notifications"
+                    )
 
-                return self.async_create_entry(
-                    title=f"MAX Messenger Notifications — {title}",
-                    data=data,
-                )
+                    data = dict(user_input)
+                    data[CONF_TOKEN] = token
+                    data[CONF_TARGET_ID] = int(data[CONF_TARGET_ID])
+                    if emergency_chat_id is None:
+                        data.pop(CONF_EMERGENCY_CHAT_ID, None)
+                    else:
+                        data[CONF_EMERGENCY_CHAT_ID] = emergency_chat_id
+
+                    return self.async_create_entry(
+                        title=f"MAX Messenger Notifications — {title}",
+                        data=data,
+                    )
 
         return self.async_show_form(
             step_id="user",
@@ -144,6 +162,7 @@ class MaxMessengerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Required(CONF_TARGET_ID): int,
                     vol.Required(CONF_POLLING, default=True): bool,
+                    vol.Optional(CONF_EMERGENCY_CHAT_ID, default=""): str,
                     vol.Optional(CONF_ALLOWED_USERS, default=""): str,
                 }
             ),
@@ -193,11 +212,19 @@ class MaxMessengerOptionsFlow(OptionsFlowWithReload):
         user_input: dict[str, Any] | None = None,
     ) -> config_entries.ConfigFlowResult:
         current = self._current()
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             data = dict(user_input)
             data[CONF_TARGET_ID] = int(data[CONF_TARGET_ID])
-            return self._save_options(data)
+            try:
+                data[CONF_EMERGENCY_CHAT_ID] = _normalize_emergency_chat_id(
+                    data.get(CONF_EMERGENCY_CHAT_ID)
+                )
+            except (TypeError, ValueError):
+                errors[CONF_EMERGENCY_CHAT_ID] = "invalid_chat_id"
+            else:
+                return self._save_options(data)
 
         return self.async_show_form(
             step_id="general",
@@ -216,11 +243,16 @@ class MaxMessengerOptionsFlow(OptionsFlowWithReload):
                         default=current.get(CONF_POLLING, True),
                     ): bool,
                     vol.Optional(
+                        CONF_EMERGENCY_CHAT_ID,
+                        default=str(current.get(CONF_EMERGENCY_CHAT_ID) or ""),
+                    ): str,
+                    vol.Optional(
                         CONF_ALLOWED_USERS,
                         default=current.get(CONF_ALLOWED_USERS, ""),
                     ): str,
                 }
             ),
+            errors=errors,
         )
 
     async def async_step_users(

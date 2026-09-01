@@ -10,13 +10,15 @@
           "target_type": "Тип получателя по умолчанию",
           "target_id": "ID получателя по умолчанию",
           "polling": "Получать сообщения и нажатия кнопок",
+          "emergency_chat_id": "ID аварийного канала MAX",
           "allowed_users": "Разрешённые user_id (старый формат)"
         }
       }
     },
     "error": {
       "cannot_connect": "Не удалось подключиться к MAX API",
-      "invalid_auth": "MAX отклонил токен"
+      "invalid_auth": "MAX отклонил токен",
+      "invalid_chat_id": "Укажите корректный chat_id аварийного канала"
     },
     "abort": {
       "already_configured": "Этот бот MAX уже настроен"
@@ -33,10 +35,12 @@
       },
       "general": {
         "title": "Основные настройки",
+        "description": "Аварийный канал используется действиями send_emergency и send_emergency_image.",
         "data": {
           "target_type": "Тип получателя по умолчанию",
           "target_id": "ID получателя по умолчанию",
           "polling": "Получать события MAX",
+          "emergency_chat_id": "ID аварийного канала MAX",
           "allowed_users": "Разрешённые user_id (старый формат)"
         }
       },
@@ -101,7 +105,8 @@
       }
     },
     "error": {
-      "user_exists": "Такой пользователь уже добавлен"
+      "user_exists": "Такой пользователь уже добавлен",
+      "invalid_chat_id": "Укажите корректный chat_id аварийного канала"
     }
   }
 }
