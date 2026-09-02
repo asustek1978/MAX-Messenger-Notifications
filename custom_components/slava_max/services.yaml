@@ -55,7 +55,7 @@ send_message:
 
 edit_message:
   name: Изменить сообщение
-  description: Редактирует ранее отправленное ботом сообщение MAX по message_id.
+  description: Редактирует ранее отправленное ботом сообщение MAX по message_id. Редактирование выполняется тихо, без повторного push.
   fields:
     config_entry_id:
       required: false
@@ -84,13 +84,6 @@ edit_message:
             - markdown
             - html
             - plain
-    notify:
-      name: Уведомлять
-      description: Отправлять push при ручном редактировании. По умолчанию выключено.
-      required: false
-      default: false
-      selector:
-        boolean:
     buttons:
       name: Кнопки
       required: false
@@ -106,7 +99,7 @@ edit_message:
 
 send_or_update:
   name: Отправить или обновить
-  description: Создаёт сообщение для нового ключа, а затем обновляет то же сообщение вместо создания новых.
+  description: Создаёт сообщение для нового ключа, а затем тихо обновляет то же сообщение вместо создания новых.
   fields:
     config_entry_id:
       required: false
@@ -156,15 +149,9 @@ send_or_update:
             - plain
     notify:
       name: Уведомлять при первом сообщении
+      description: Первое сообщение создаётся с этим параметром; дальнейшие обновления выполняются без повторного push.
       required: false
       default: true
-      selector:
-        boolean:
-    notify_on_update:
-      name: Уведомлять при обновлении
-      description: Отправлять push MAX при каждой перезаписи сообщения. По умолчанию выключено.
-      required: false
-      default: false
       selector:
         boolean:
     disable_link_preview:
