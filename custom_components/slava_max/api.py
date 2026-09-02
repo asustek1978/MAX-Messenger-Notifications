@@ -234,7 +234,7 @@ class SlavaMaxApi:
         """Edit a message previously sent by this bot."""
         body: dict[str, Any] = {
             "text": text,
-            "notify": notify,
+            "notify": False,
         }
         if fmt in ("markdown", "html"):
             body["format"] = fmt
