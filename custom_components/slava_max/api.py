@@ -222,6 +222,47 @@ class SlavaMaxApi:
             require_json=False,
         )
 
+    async def edit_message(
+        self,
+        *,
+        message_id: str,
+        text: str,
+        fmt: str | None = "markdown",
+        notify: bool = True,
+        buttons: list[list[dict[str, Any]]] | None = None,
+    ) -> dict[str, Any]:
+        """Edit a message previously sent by this bot."""
+        body: dict[str, Any] = {
+            "text": text,
+            "notify": False,
+        }
+        if fmt in ("markdown", "html"):
+            body["format"] = fmt
+
+        if buttons is not None:
+            body["attachments"] = []
+            if buttons:
+                body["attachments"].append(
+                    {
+                        "type": "inline_keyboard",
+                        "payload": {"buttons": buttons},
+                    }
+                )
+
+        result = await self._request(
+            "PUT",
+            "/messages",
+            params={"message_id": message_id},
+            json_data=body,
+            require_json=False,
+        )
+        if result.get("success") is False:
+            detail = str(
+                result.get("message") or "MAX не смог отредактировать сообщение"
+            )
+            raise SlavaMaxApiError(f"MAX edit rejected: {detail}")
+        return result
+
     async def send_image_token(
         self,
         *,
@@ -234,12 +275,7 @@ class SlavaMaxApi:
         buttons: list[list[dict[str, Any]]] | None = None,
         disable_link_preview: bool = False,
     ) -> dict[str, Any]:
-        attachment = {
-            "type": "image",
-            "payload": {"token": token},
-        }
-
-        # MAX may need a moment to finish image processing.
+        attachment = {"type": "image", "payload": {"token": token}}
         delays = (0.8, 1.5, 3.0)
         last_error: SlavaMaxApiError | None = None
 
@@ -280,13 +316,11 @@ class SlavaMaxApi:
             "/uploads",
             params={"type": "image"},
         )
-
         upload_url = str(upload_info.get("url") or "").strip()
         if not upload_url:
             raise SlavaMaxApiError(
                 "MAX API не вернул URL для загрузки изображения"
             )
-
         token = _find_token(upload_info) or _token_from_url(upload_url)
 
         form = aiohttp.FormData()
@@ -306,13 +340,11 @@ class SlavaMaxApi:
             ) as response:
                 raw = await response.read()
                 text = raw.decode("utf-8", errors="replace").strip()
-
                 if response.status >= 400:
                     detail = text[:1500] if text else "пустой ответ"
                     raise SlavaMaxApiError(
                         f"MAX image upload HTTP {response.status}: {detail}"
                     )
-
                 if text:
                     try:
                         parsed = json.loads(text)
@@ -321,7 +353,6 @@ class SlavaMaxApi:
                     found = _find_token(parsed)
                     if found:
                         token = found
-
         except asyncio.CancelledError:
             raise
         except SlavaMaxApiError:
@@ -335,7 +366,6 @@ class SlavaMaxApi:
             raise SlavaMaxApiError(
                 "MAX не вернул token после загрузки изображения"
             )
-
         return token
 
     async def send_video_token(
@@ -351,12 +381,7 @@ class SlavaMaxApi:
         disable_link_preview: bool = False,
     ) -> dict[str, Any]:
         """Send an already uploaded MAX video token."""
-        attachment = {
-            "type": "video",
-            "payload": {"token": token},
-        }
-
-        # Video processing can take a little longer than image processing.
+        attachment = {"type": "video", "payload": {"token": token}}
         delays = (1.0, 2.0, 4.0, 7.0)
         last_error: SlavaMaxApiError | None = None
 
@@ -397,14 +422,11 @@ class SlavaMaxApi:
             "/uploads",
             params={"type": "video"},
         )
-
         upload_url = str(upload_info.get("url") or "").strip()
         if not upload_url:
             raise SlavaMaxApiError(
                 "MAX API не вернул URL для загрузки видео"
             )
-
-        # For video MAX normally returns the token together with upload URL.
         token = _find_token(upload_info) or _token_from_url(upload_url)
 
         form = aiohttp.FormData()
@@ -424,13 +446,11 @@ class SlavaMaxApi:
             ) as response:
                 raw = await response.read()
                 text = raw.decode("utf-8", errors="replace").strip()
-
                 if response.status >= 400:
                     detail = text[:1500] if text else "пустой ответ"
                     raise SlavaMaxApiError(
                         f"MAX video upload HTTP {response.status}: {detail}"
                     )
-
                 if text:
                     try:
                         parsed = json.loads(text)
@@ -438,7 +458,6 @@ class SlavaMaxApi:
                         parsed = None
                     if parsed is not None:
                         token = token or _find_token(parsed)
-
         except asyncio.CancelledError:
             raise
         except SlavaMaxApiError:
@@ -452,7 +471,6 @@ class SlavaMaxApi:
             raise SlavaMaxApiError(
                 "MAX не вернул token после загрузки видео"
             )
-
         return token
 
     async def answer_callback(

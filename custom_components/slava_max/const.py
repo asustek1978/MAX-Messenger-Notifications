@@ -7,6 +7,14 @@ CONF_POLLING = "polling"
 CONF_ALLOWED_USERS = "allowed_users"
 CONF_EMERGENCY_CHAT_ID = "emergency_chat_id"
 
+# Fallback notifications
+CONF_FALLBACK_HA_ENABLED = "fallback_ha_enabled"
+CONF_FALLBACK_HA_SERVICE = "fallback_ha_service"
+CONF_FALLBACK_VK_ENABLED = "fallback_vk_enabled"
+CONF_FALLBACK_VK_ENTITY = "fallback_vk_entity"
+CONF_FALLBACK_REGULAR = "fallback_regular"
+CONF_FALLBACK_EMERGENCY = "fallback_emergency"
+
 # Multi-user access control
 CONF_USERS = "users"
 CONF_USER_NAME = "name"
@@ -51,6 +59,8 @@ EVENT_NAME = "slava_max_event"
 EVENT_ACCESS_REQUEST = "slava_max_access_request"
 
 SERVICE_SEND_MESSAGE = "send_message"
+SERVICE_EDIT_MESSAGE = "edit_message"
+SERVICE_SEND_OR_UPDATE = "send_or_update"
 SERVICE_BROADCAST = "broadcast"
 SERVICE_ANSWER_CALLBACK = "answer_callback"
 SERVICE_SEND_IMAGE = "send_image"

@@ -1,6 +1,6 @@
 send_message:
   name: Отправить сообщение
-  description: Отправляет текстовое сообщение через MAX.
+  description: Отправляет текстовое сообщение через MAX. При ошибке MAX может использовать настроенные резервные каналы.
   fields:
     config_entry_id:
       required: false
@@ -53,9 +53,122 @@ send_message:
       selector:
         object:
 
+edit_message:
+  name: Изменить сообщение
+  description: Редактирует ранее отправленное ботом сообщение MAX по message_id. Редактирование выполняется тихо, без повторного push.
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: slava_max
+    message_id:
+      name: Message ID
+      description: ID сообщения MAX (body.mid).
+      required: true
+      selector:
+        text:
+    message:
+      name: Новый текст
+      required: true
+      selector:
+        text:
+          multiline: true
+    format:
+      name: Формат
+      required: false
+      default: markdown
+      selector:
+        select:
+          options:
+            - markdown
+            - html
+            - plain
+    buttons:
+      name: Кнопки
+      required: false
+      selector:
+        object:
+    emergency:
+      name: Аварийное сообщение
+      description: Использовать настройки аварийного резерва, если редактирование MAX завершится ошибкой.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+send_or_update:
+  name: Отправить или обновить
+  description: Создаёт сообщение для нового ключа, а затем тихо обновляет то же сообщение вместо создания новых.
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: slava_max
+    key:
+      name: Ключ сообщения
+      description: Постоянный ключ, например weather, vacuum_status или refrigerator_temperature.
+      required: true
+      selector:
+        text:
+    message:
+      name: Сообщение
+      required: true
+      selector:
+        text:
+          multiline: true
+    chat_id:
+      name: Chat ID
+      required: false
+      selector:
+        number:
+          mode: box
+    user_id:
+      name: User ID
+      required: false
+      selector:
+        number:
+          mode: box
+    emergency:
+      name: Аварийный канал
+      description: Если включено, сообщение отправляется или обновляется в настроенном аварийном канале.
+      required: false
+      default: false
+      selector:
+        boolean:
+    format:
+      name: Формат
+      required: false
+      default: markdown
+      selector:
+        select:
+          options:
+            - markdown
+            - html
+            - plain
+    notify:
+      name: Уведомлять при первом сообщении
+      description: Первое сообщение создаётся с этим параметром; дальнейшие обновления выполняются без повторного push.
+      required: false
+      default: true
+      selector:
+        boolean:
+    disable_link_preview:
+      name: Отключить превью ссылок
+      required: false
+      default: false
+      selector:
+        boolean:
+    buttons:
+      name: Кнопки
+      required: false
+      selector:
+        object:
+
 send_emergency:
   name: Отправить аварийное сообщение
-  description: Отправляет сообщение в аварийный канал MAX, заданный в настройках MAX Messenger Notifications.
+  description: Отправляет сообщение в аварийный канал MAX. При ошибке использует включённые аварийные резервные каналы.
   fields:
     config_entry_id:
       required: false
@@ -205,7 +318,7 @@ send_image:
 
 send_emergency_image:
   name: Отправить аварийное изображение
-  description: Загружает локальное изображение и отправляет его в аварийный канал MAX из настроек MAX Messenger Notifications.
+  description: Загружает локальное изображение и отправляет его в аварийный канал MAX.
   fields:
     config_entry_id:
       required: false
