@@ -30,6 +30,7 @@
         "title": "Настройки MAX Messenger Notifications",
         "menu_options": {
           "general": "Основные настройки",
+          "fallback": "Резервные уведомления",
           "users": "Пользователи и права"
         }
       },
@@ -41,6 +42,18 @@
           "polling": "Получать события MAX",
           "allowed_users": "Разрешённые user_id (старый формат)",
           "emergency_chat_id": "ID аварийного канала MAX"
+        }
+      },
+      "fallback": {
+        "title": "Резервные уведомления",
+        "description": "MAX остаётся основным каналом. Резервные каналы используются только если отправка через MAX завершилась ошибкой. Если включены и Home Assistant Push, и VK, при ошибке MAX сообщение уйдёт в оба резервных канала.",
+        "data": {
+          "fallback_ha_enabled": "Использовать Home Assistant Push при ошибке MAX",
+          "fallback_ha_service": "Телефон Home Assistant (mobile_app)",
+          "fallback_vk_enabled": "Использовать VK как резерв при ошибке MAX",
+          "fallback_vk_entity": "VK notify",
+          "fallback_regular": "Резервировать обычные сообщения",
+          "fallback_emergency": "Резервировать аварийные сообщения"
         }
       },
       "users": {
