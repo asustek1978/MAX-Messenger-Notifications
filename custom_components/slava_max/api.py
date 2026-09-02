@@ -257,9 +257,10 @@ class SlavaMaxApi:
             require_json=False,
         )
         if result.get("success") is False:
-            raise SlavaMaxApiError(
-                str(result.get("message") or "MAX не смог отредактировать сообщение")
+            detail = str(
+                result.get("message") or "MAX не смог отредактировать сообщение"
             )
+            raise SlavaMaxApiError(f"MAX edit rejected: {detail}")
         return result
 
     async def send_image_token(
