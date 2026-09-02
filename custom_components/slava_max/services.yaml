@@ -86,8 +86,9 @@ edit_message:
             - plain
     notify:
       name: Уведомлять
+      description: Отправлять push при ручном редактировании. По умолчанию выключено.
       required: false
-      default: true
+      default: false
       selector:
         boolean:
     buttons:
@@ -154,9 +155,16 @@ send_or_update:
             - html
             - plain
     notify:
-      name: Уведомлять
+      name: Уведомлять при первом сообщении
       required: false
       default: true
+      selector:
+        boolean:
+    notify_on_update:
+      name: Уведомлять при обновлении
+      description: Отправлять push MAX при каждой перезаписи сообщения. По умолчанию выключено.
+      required: false
+      default: false
       selector:
         boolean:
     disable_link_preview:
