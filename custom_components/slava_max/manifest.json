@@ -1,7 +1,7 @@
 {
   "domain": "slava_max",
   "name": "MAX Messenger Notifications",
-  "version": "0.7.0",
+  "version": "0.7.7",
   "config_flow": true,
   "documentation": "https://github.com/asustek1978/MAX-Messenger-Notifications",
   "iot_class": "cloud_polling",
