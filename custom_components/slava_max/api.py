@@ -234,7 +234,10 @@ class SlavaMaxApi:
         """Edit a message previously sent by this bot."""
         body: dict[str, Any] = {
             "text": text,
-            "notify": False,
+            # Preserve the caller's notification preference when editing.
+            # MAX supports push notifications for PUT /messages; forcing False
+            # made all send_or_update edits silent.
+            "notify": bool(notify),
         }
         if fmt in ("markdown", "html"):
             body["format"] = fmt
@@ -261,6 +264,25 @@ class SlavaMaxApi:
                 result.get("message") or "MAX не смог отредактировать сообщение"
             )
             raise SlavaMaxApiError(f"MAX edit rejected: {detail}")
+        return result
+
+    async def delete_message(
+        self,
+        *,
+        message_id: str,
+    ) -> dict[str, Any]:
+        """Delete a message previously sent by this bot."""
+        result = await self._request(
+            "DELETE",
+            "/messages",
+            params={"message_id": message_id},
+            require_json=False,
+        )
+        if result.get("success") is False:
+            detail = str(
+                result.get("message") or "MAX не смог удалить сообщение"
+            )
+            raise SlavaMaxApiError(f"MAX delete rejected: {detail}")
         return result
 
     async def send_image_token(
@@ -495,6 +517,11 @@ class SlavaMaxApi:
                     }
                 ]
             body["message"] = message
+        else:
+            # MAX rejects an empty callback answer.  When the caller only
+            # needs to acknowledge the button press, show a one-shot
+            # notification instead of replacing the original message.
+            body["notification"] = "✅ Выполнено"
 
         return await self._request(
             "POST",
