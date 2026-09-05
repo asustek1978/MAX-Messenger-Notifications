@@ -97,9 +97,77 @@ edit_message:
       selector:
         boolean:
 
+send_or_replace:
+  name: Отправить и заменить предыдущее
+  description: Отправляет новое сообщение для ключа, затем удаляет предыдущее. В личных обычных сообщениях автоматически добавляет кнопку «🏠 Управление домом». В аварийном канале кнопку управления не добавляет.
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: slava_max
+    key:
+      name: Ключ сообщения
+      description: Постоянный ключ темы сообщения.
+      required: true
+      selector:
+        text:
+    message:
+      name: Сообщение
+      required: true
+      selector:
+        text:
+          multiline: true
+    chat_id:
+      name: Chat ID
+      required: false
+      selector:
+        number:
+          mode: box
+    user_id:
+      name: User ID
+      required: false
+      selector:
+        number:
+          mode: box
+    emergency:
+      name: Аварийный канал
+      description: Если включено, используется аварийный chat_id.
+      required: false
+      default: false
+      selector:
+        boolean:
+    format:
+      name: Формат
+      required: false
+      default: markdown
+      selector:
+        select:
+          options:
+            - markdown
+            - html
+            - plain
+    notify:
+      name: PUSH
+      required: false
+      default: true
+      selector:
+        boolean:
+    buttons:
+      name: Кнопки
+      required: false
+      selector:
+        object:
+    disable_link_preview:
+      name: Отключить превью ссылок
+      required: false
+      default: false
+      selector:
+        boolean:
+
 send_or_update:
   name: Отправить или обновить
-  description: Создаёт сообщение для нового ключа, а затем тихо обновляет то же сообщение вместо создания новых.
+  description: Создаёт сообщение для нового ключа, а затем обновляет то же сообщение вместо создания новых.
   fields:
     config_entry_id:
       required: false
@@ -148,8 +216,8 @@ send_or_update:
             - html
             - plain
     notify:
-      name: Уведомлять при первом сообщении
-      description: Первое сообщение создаётся с этим параметром; дальнейшие обновления выполняются без повторного push.
+      name: Уведомлять
+      description: Отправлять push и при создании, и при обновлении сообщения.
       required: false
       default: true
       selector:
@@ -205,6 +273,63 @@ send_emergency:
         boolean:
     buttons:
       name: Кнопки
+      required: false
+      selector:
+        object:
+
+broadcast_or_update:
+  name: Рассылка или обновление
+  description: Для каждого разрешённого получателя создаёт одно сообщение на ключ, а затем обновляет его вместо создания новых.
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: slava_max
+    key:
+      name: Ключ сообщения
+      description: Постоянный ключ, например home_system_start_status.
+      required: true
+      selector:
+        text:
+    message:
+      name: Сообщение
+      required: true
+      selector:
+        text:
+          multiline: true
+    user_ids:
+      name: User ID получателей
+      required: false
+      selector:
+        object:
+    required_permission:
+      name: Необходимое право
+      required: false
+      selector:
+        text:
+    format:
+      required: false
+      default: markdown
+      selector:
+        select:
+          options:
+            - markdown
+            - html
+            - plain
+    notify:
+      name: Уведомлять
+      description: Отправлять push и при создании, и при обновлении сообщения.
+      required: false
+      default: true
+      selector:
+        boolean:
+    disable_link_preview:
+      required: false
+      default: false
+      selector:
+        boolean:
+    buttons:
       required: false
       selector:
         object:
