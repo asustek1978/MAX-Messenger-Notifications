@@ -1042,7 +1042,7 @@ def _register_services(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, SERVICE_SEND_MESSAGE):
         return
 
-    entry_selector = vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string
+    entry_selector = vol.Optional(ATTR_CONFIG_ENTRY_ID)
 
     async def handle_send_message(call: ServiceCall) -> None:
         entry = _entry_by_id(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
@@ -1392,7 +1392,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     common_message_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_CHAT_ID): vol.Coerce(int),
             vol.Optional(ATTR_USER_ID): vol.Coerce(int),
@@ -1405,7 +1405,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     edit_message_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_MESSAGE_ID): cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_FORMAT, default="markdown"): cv.string,
@@ -1417,7 +1417,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     send_or_update_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_KEY): cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_CHAT_ID): vol.Coerce(int),
@@ -1432,7 +1432,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     send_or_replace_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_KEY): cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_CHAT_ID): vol.Coerce(int),
@@ -1447,7 +1447,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     emergency_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_FORMAT, default="markdown"): cv.string,
             vol.Optional(ATTR_NOTIFY, default=True): cv.boolean,
@@ -1458,7 +1458,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     broadcast_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_USER_IDS): object,
             vol.Optional(ATTR_REQUIRED_PERMISSION): cv.string,
@@ -1471,7 +1471,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     broadcast_or_update_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_KEY): cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_USER_IDS): object,
@@ -1485,7 +1485,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     image_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_FILE_PATH): cv.string,
             vol.Optional(ATTR_MESSAGE, default=""): cv.string,
             vol.Optional(ATTR_CHAT_ID): vol.Coerce(int),
@@ -1499,7 +1499,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     emergency_image_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_FILE_PATH): cv.string,
             vol.Optional(ATTR_MESSAGE, default=""): cv.string,
             vol.Optional(ATTR_FORMAT, default="markdown"): cv.string,
@@ -1511,7 +1511,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     broadcast_image_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_FILE_PATH): cv.string,
             vol.Optional(ATTR_MESSAGE, default=""): cv.string,
             vol.Optional(ATTR_USER_IDS): object,
@@ -1528,7 +1528,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     callback_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_CALLBACK_ID): cv.string,
             vol.Optional(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_FORMAT, default="markdown"): cv.string,
