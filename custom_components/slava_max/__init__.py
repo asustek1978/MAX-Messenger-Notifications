@@ -170,7 +170,21 @@ def _emergency_chat_id(cfg: dict[str, Any]) -> int:
 def _configured_users(cfg: dict[str, Any]) -> dict[int, dict[str, Any]]:
     result: dict[int, dict[str, Any]] = {}
 
-    for row in cfg.get(CONF_USERS, []) or []:
+    # The options flow stores profiles keyed by user ID. Retain compatibility
+    # with the list-of-rows format, but never iterate a mapping as profile rows.
+    users = cfg.get(CONF_USERS) or {}
+    if isinstance(users, dict):
+        rows = [
+            {**profile, "user_id": raw_id}
+            for raw_id, profile in users.items()
+            if isinstance(profile, dict)
+        ]
+    elif isinstance(users, list):
+        rows = users
+    else:
+        rows = []
+
+    for row in rows:
         if not isinstance(row, dict):
             continue
         try:
@@ -183,7 +197,13 @@ def _configured_users(cfg: dict[str, Any]) -> dict[int, dict[str, Any]]:
             CONF_USER_PERMISSIONS: list(row.get(CONF_USER_PERMISSIONS, []) or []),
         }
 
-    for raw in cfg.get(CONF_ALLOWED_USERS, []) or []:
+    allowed_users = cfg.get(CONF_ALLOWED_USERS) or []
+    if isinstance(allowed_users, str):
+        # The general settings form stores a comma-separated string, not a list.
+        allowed_users = allowed_users.replace(";", ",").split(",")
+    elif not isinstance(allowed_users, (list, tuple, set)):
+        allowed_users = []
+    for raw in allowed_users:
         try:
             user_id = int(raw)
         except (TypeError, ValueError):
