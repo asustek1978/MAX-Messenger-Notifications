@@ -35,6 +35,12 @@ def load_functions():
     namespace = runpy.run_path(str(COMPONENT / "const.py"))
     namespace["_LOGGER"] = logging.getLogger("max_callback_test")
     exec(compile(module, str(SOURCE), "exec"), namespace)
+    # Produce the same profile representation used by the actual options flow.
+    config_source = COMPONENT / "config_flow.py"
+    config_tree = ast.parse(config_source.read_text())
+    normalizer = next(n for n in config_tree.body if isinstance(n, ast.FunctionDef) and n.name == "_normalize_users")
+    config_module = ast.fix_missing_locations(ast.Module(body=[body[0], normalizer], type_ignores=[]))
+    exec(compile(config_module, str(config_source), "exec"), namespace)
     return namespace
 
 
@@ -63,8 +69,53 @@ class CallbackTests(unittest.TestCase):
         self.hass = SimpleNamespace(bus=SimpleNamespace(
             async_fire=lambda name, data: self.events.append((name, data))))
         self.entry = SimpleNamespace(entry_id="entry-test", options={}, data={
-            "users": [{"user_id": 1001, "name": "Configured actor", "enabled": True, "permissions": ["*"]}],
+            "users": self.ns["_normalize_users"]({"1001": {
+                "name": "Configured actor", "enabled": True, "permissions": ["*"],
+            }}),
         })
+
+    def test_options_flow_profiles_support_multiple_users(self):
+        self.entry.data["users"] = self.ns["_normalize_users"]({
+            "1001": {"name": "First", "enabled": True, "permissions": ["*"]},
+            "2002": {"name": "Second", "enabled": True, "permissions": ["notifications"]},
+        })
+        self.assertIsInstance(self.entry.data["users"], dict)
+        self.assertEqual(set(self.ns["_configured_users"](self.entry.data)), {1001, 2002})
+        for user_id in (1001, 2002):
+            with self.subTest(user_id=user_id):
+                update = callback_update()
+                update["callback"]["user"]["user_id"] = user_id
+                self.assertEqual(self.event_data(update)["user_id"], user_id)
+
+    def test_general_settings_allowlist_string_keeps_complete_ids(self):
+        self.entry.data = {"allowed_users": "1001, 2002; 3003, invalid,,"}
+        self.assertEqual(set(self.ns["_configured_users"](self.entry.data)), {1001, 2002, 3003})
+        self.assertEqual(self.event_data(callback_update())["user_id"], 1001)
+        for single_digit in (0, 1, 2, 3):
+            self.assertFalse(self.ns["_is_allowed"](self.entry.data, single_digit))
+
+    def test_explicit_dict_denials_override_legacy_allowlist(self):
+        for enabled, permissions in ((False, ["*"]), (True, [])):
+            with self.subTest(enabled=enabled, permissions=permissions):
+                self.entry.data = {"allowed_users": "1001", "users": self.ns["_normalize_users"]({
+                    "1001": {"name": "Denied", "enabled": enabled, "permissions": permissions},
+                })}
+                self.assertEqual([name for name, _ in self.dispatch(callback_update())], ["slava_max_access_request"])
+
+    def test_dict_options_override_data_profiles(self):
+        self.entry.options = {"users": self.ns["_normalize_users"]({
+            "1001": {"enabled": False, "permissions": ["*"]},
+        })}
+        self.assertEqual([name for name, _ in self.dispatch(callback_update())], ["slava_max_access_request"])
+
+    def test_dict_key_is_authoritative_over_embedded_id(self):
+        self.entry.data = {"users": {"1001": {"user_id": 9999, "enabled": True, "permissions": ["*"]}}}
+        self.assertEqual(set(self.ns["_configured_users"](self.entry.data)), {1001})
+        self.assertFalse(self.ns["_is_allowed"](self.entry.data, 9999))
+
+    def test_legacy_list_profiles_still_work(self):
+        self.entry.data = {"users": [{"user_id": 1001, "name": "Legacy", "enabled": True, "permissions": ["*"]}]}
+        self.assertEqual(self.event_data(callback_update())["access_name"], "Legacy")
 
     def dispatch(self, update):
         self.events.clear()
