@@ -15,6 +15,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service import async_set_service_schema
+from homeassistant.helpers.storage import Store
 
 from .api import SlavaMaxApi, SlavaMaxApiError
 from .const import (
@@ -480,19 +481,61 @@ def _extract_message_id(result: dict[str, Any] | None) -> str | None:
         candidates.extend([body.get("mid"), body.get("message_id")])
     message = result.get("message")
     if isinstance(message, dict):
+        message_body = message.get("body")
+        if isinstance(message_body, dict):
+            candidates[0:0] = [message_body.get("mid"), message_body.get("message_id")]
         candidates.extend([message.get("mid"), message.get("message_id")])
     for value in candidates:
-        if value not in (None, ""):
+        if (
+            isinstance(value, (str, int))
+            and not isinstance(value, bool)
+            and str(value).strip()
+        ):
             return str(value)
     return None
 
 
-def _message_store(hass: HomeAssistant) -> dict[str, dict[str, Any]]:
-    return hass.data.setdefault(DOMAIN, {}).setdefault("message_store", {})
+def _message_runtime(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+    runtime = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if runtime is None:
+        raise HomeAssistantError("Интеграция MAX ещё не загружена")
+    return runtime
 
 
-def _message_store_key(entry: ConfigEntry, key: str, target_type: str, target_id: int) -> str:
-    return f"{entry.entry_id}:{target_type}:{int(target_id)}:{key}"
+def _message_store_key(
+    key: str, target_type: str, target_id: int, emergency: bool
+) -> str:
+    """Keep the per-entry storage format used since version 0.7.0."""
+    if not key.strip():
+        raise HomeAssistantError("key не может быть пустым")
+    scope = "emergency" if emergency else "regular"
+    return f"{scope}:{target_type}:{int(target_id)}:{key}"
+
+
+async def _remember_message_id(
+    runtime: dict[str, Any], store_key: str, result: dict[str, Any] | None
+) -> str | None:
+    """Remember a successful send while holding the entry's message lock."""
+    message_id = _extract_message_id(result)
+    if message_id is None:
+        _LOGGER.warning(
+            "MAX отправил сообщение key=%s, но ответ не содержит message.body.mid; "
+            "ID не сохранён, следующий вызов может создать новое сообщение",
+            store_key,
+        )
+        return None
+
+    runtime["message_map"][store_key] = message_id
+    try:
+        await runtime["message_store"].async_save(dict(runtime["message_map"]))
+    except Exception:
+        # The message was delivered: do not report a send failure and trigger retries.
+        _LOGGER.exception(
+            "MAX сообщение отправлено, но ID key=%s не сохранён на диск; "
+            "после перезапуска возможно новое сообщение",
+            store_key,
+        )
+    return message_id
 
 
 async def _send_or_update(
@@ -509,53 +552,44 @@ async def _send_or_update(
     disable_link_preview: bool,
     emergency: bool,
 ) -> dict[str, Any] | None:
-    store = _message_store(hass)
-    store_key = _message_store_key(entry, key, target_type, target_id)
-    previous = store.get(store_key)
+    runtime = _message_runtime(hass, entry)
+    store_key = _message_store_key(key, target_type, target_id, emergency)
     api = _api(hass, entry)
 
-    if previous and previous.get("message_id"):
-        try:
-            result = await api.edit_message(
-                message_id=str(previous["message_id"]),
-                text=message,
-                fmt=fmt,
-                notify=notify,
-                buttons=buttons,
-            )
-            previous["message"] = message
-            previous["result"] = result
-            return result
-        except Exception as err:
-            _LOGGER.warning(
-                "Не удалось обновить MAX сообщение key=%s target=%s:%s: %s. Будет создано новое.",
-                key,
-                target_type,
-                target_id,
-                err,
-            )
+    async with runtime["message_lock"]:
+        previous_id = runtime["message_map"].get(store_key)
+        if previous_id:
+            try:
+                return await api.edit_message(
+                    message_id=previous_id,
+                    text=message,
+                    fmt=fmt,
+                    notify=notify,
+                    buttons=buttons,
+                )
+            except Exception as err:
+                _LOGGER.warning(
+                    "Не удалось обновить MAX сообщение key=%s target=%s:%s: %s. Будет создано новое.",
+                    key,
+                    target_type,
+                    target_id,
+                    err,
+                )
 
-    result = await _send_message(
-        hass,
-        entry,
-        message=message,
-        target_type=target_type,
-        target_id=target_id,
-        fmt=fmt,
-        notify=notify,
-        buttons=buttons,
-        disable_link_preview=disable_link_preview,
-        emergency=emergency,
-    )
-    message_id = _extract_message_id(result)
-    if message_id:
-        store[store_key] = {
-            "message_id": message_id,
-            "message": message,
-            "target_type": target_type,
-            "target_id": int(target_id),
-        }
-    return result
+        result = await _send_message(
+            hass,
+            entry,
+            message=message,
+            target_type=target_type,
+            target_id=target_id,
+            fmt=fmt,
+            notify=notify,
+            buttons=buttons,
+            disable_link_preview=disable_link_preview,
+            emergency=emergency,
+        )
+        await _remember_message_id(runtime, store_key, result)
+        return result
 
 
 async def _send_or_replace(
@@ -573,48 +607,40 @@ async def _send_or_replace(
     emergency: bool,
 ) -> dict[str, Any] | None:
     """Send a fresh message, then remove the previous message for this key."""
-    store = _message_store(hass)
-    store_key = _message_store_key(entry, key, target_type, target_id)
-    previous = store.get(store_key)
+    runtime = _message_runtime(hass, entry)
+    store_key = _message_store_key(key, target_type, target_id, emergency)
     api = _api(hass, entry)
 
-    result = await _send_message(
-        hass,
-        entry,
-        message=message,
-        target_type=target_type,
-        target_id=target_id,
-        fmt=fmt,
-        notify=notify,
-        buttons=buttons,
-        disable_link_preview=disable_link_preview,
-        emergency=emergency,
-    )
-    new_message_id = _extract_message_id(result)
+    async with runtime["message_lock"]:
+        previous_id = runtime["message_map"].get(store_key)
+        result = await _send_message(
+            hass,
+            entry,
+            message=message,
+            target_type=target_type,
+            target_id=target_id,
+            fmt=fmt,
+            notify=notify,
+            buttons=buttons,
+            disable_link_preview=disable_link_preview,
+            emergency=emergency,
+        )
+        new_message_id = await _remember_message_id(runtime, store_key, result)
 
-    if new_message_id:
-        store[store_key] = {
-            "message_id": new_message_id,
-            "message": message,
-            "target_type": target_type,
-            "target_id": int(target_id),
-        }
+        if previous_id and new_message_id and previous_id != new_message_id:
+            try:
+                await api.delete_message(message_id=previous_id)
+            except Exception as err:
+                _LOGGER.warning(
+                    "Новое MAX сообщение отправлено, но старое не удалено key=%s target=%s:%s old_mid=%s: %s",
+                    key,
+                    target_type,
+                    target_id,
+                    previous_id,
+                    err,
+                )
 
-    old_message_id = str((previous or {}).get("message_id") or "").strip()
-    if old_message_id and new_message_id and old_message_id != new_message_id:
-        try:
-            await api.delete_message(message_id=old_message_id)
-        except Exception as err:
-            _LOGGER.warning(
-                "Новое MAX сообщение отправлено, но старое не удалено key=%s target=%s:%s old_mid=%s: %s",
-                key,
-                target_type,
-                target_id,
-                old_message_id,
-                err,
-            )
-
-    return result
+        return result
 
 
 async def _broadcast_message(
@@ -844,7 +870,6 @@ async def _broadcast_video(
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN].setdefault("message_store", {})
     _register_services(hass)
     return True
 
@@ -852,12 +877,25 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     cfg = _conf(entry)
     api = SlavaMaxApi(async_get_clientsession(hass), cfg[CONF_TOKEN])
+    message_store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.message_keys")
+    stored = await message_store.async_load()
+    message_map = stored if isinstance(stored, dict) else {}
 
     runtime: dict[str, Any] = {
         "api": api,
         "marker": None,
         "task": None,
         "stop": None,
+        "message_store": message_store,
+        "message_map": {
+            key: str(value)
+            for key, value in message_map.items()
+            if isinstance(key, str)
+            and isinstance(value, (str, int))
+            and not isinstance(value, bool)
+            and str(value).strip()
+        },
+        "message_lock": asyncio.Lock(),
     }
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime
 
