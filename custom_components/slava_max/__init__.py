@@ -15,6 +15,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service import async_set_service_schema
+from homeassistant.helpers.storage import Store
 
 from .api import SlavaMaxApi, SlavaMaxApiError
 from .const import (
@@ -169,7 +170,21 @@ def _emergency_chat_id(cfg: dict[str, Any]) -> int:
 def _configured_users(cfg: dict[str, Any]) -> dict[int, dict[str, Any]]:
     result: dict[int, dict[str, Any]] = {}
 
-    for row in cfg.get(CONF_USERS, []) or []:
+    # The options flow stores profiles keyed by user ID. Retain compatibility
+    # with the list-of-rows format, but never iterate a mapping as profile rows.
+    users = cfg.get(CONF_USERS) or {}
+    if isinstance(users, dict):
+        rows = [
+            {**profile, "user_id": raw_id}
+            for raw_id, profile in users.items()
+            if isinstance(profile, dict)
+        ]
+    elif isinstance(users, list):
+        rows = users
+    else:
+        rows = []
+
+    for row in rows:
         if not isinstance(row, dict):
             continue
         try:
@@ -182,7 +197,13 @@ def _configured_users(cfg: dict[str, Any]) -> dict[int, dict[str, Any]]:
             CONF_USER_PERMISSIONS: list(row.get(CONF_USER_PERMISSIONS, []) or []),
         }
 
-    for raw in cfg.get(CONF_ALLOWED_USERS, []) or []:
+    allowed_users = cfg.get(CONF_ALLOWED_USERS) or []
+    if isinstance(allowed_users, str):
+        # The general settings form stores a comma-separated string, not a list.
+        allowed_users = allowed_users.replace(";", ",").split(",")
+    elif not isinstance(allowed_users, (list, tuple, set)):
+        allowed_users = []
+    for raw in allowed_users:
         try:
             user_id = int(raw)
         except (TypeError, ValueError):
@@ -480,19 +501,61 @@ def _extract_message_id(result: dict[str, Any] | None) -> str | None:
         candidates.extend([body.get("mid"), body.get("message_id")])
     message = result.get("message")
     if isinstance(message, dict):
+        message_body = message.get("body")
+        if isinstance(message_body, dict):
+            candidates[0:0] = [message_body.get("mid"), message_body.get("message_id")]
         candidates.extend([message.get("mid"), message.get("message_id")])
     for value in candidates:
-        if value not in (None, ""):
+        if (
+            isinstance(value, (str, int))
+            and not isinstance(value, bool)
+            and str(value).strip()
+        ):
             return str(value)
     return None
 
 
-def _message_store(hass: HomeAssistant) -> dict[str, dict[str, Any]]:
-    return hass.data.setdefault(DOMAIN, {}).setdefault("message_store", {})
+def _message_runtime(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+    runtime = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if runtime is None:
+        raise HomeAssistantError("Интеграция MAX ещё не загружена")
+    return runtime
 
 
-def _message_store_key(entry: ConfigEntry, key: str, target_type: str, target_id: int) -> str:
-    return f"{entry.entry_id}:{target_type}:{int(target_id)}:{key}"
+def _message_store_key(
+    key: str, target_type: str, target_id: int, emergency: bool
+) -> str:
+    """Keep the per-entry storage format used since version 0.7.0."""
+    if not key.strip():
+        raise HomeAssistantError("key не может быть пустым")
+    scope = "emergency" if emergency else "regular"
+    return f"{scope}:{target_type}:{int(target_id)}:{key}"
+
+
+async def _remember_message_id(
+    runtime: dict[str, Any], store_key: str, result: dict[str, Any] | None
+) -> str | None:
+    """Remember a successful send while holding the entry's message lock."""
+    message_id = _extract_message_id(result)
+    if message_id is None:
+        _LOGGER.warning(
+            "MAX отправил сообщение key=%s, но ответ не содержит message.body.mid; "
+            "ID не сохранён, следующий вызов может создать новое сообщение",
+            store_key,
+        )
+        return None
+
+    runtime["message_map"][store_key] = message_id
+    try:
+        await runtime["message_store"].async_save(dict(runtime["message_map"]))
+    except Exception:
+        # The message was delivered: do not report a send failure and trigger retries.
+        _LOGGER.exception(
+            "MAX сообщение отправлено, но ID key=%s не сохранён на диск; "
+            "после перезапуска возможно новое сообщение",
+            store_key,
+        )
+    return message_id
 
 
 async def _send_or_update(
@@ -509,53 +572,44 @@ async def _send_or_update(
     disable_link_preview: bool,
     emergency: bool,
 ) -> dict[str, Any] | None:
-    store = _message_store(hass)
-    store_key = _message_store_key(entry, key, target_type, target_id)
-    previous = store.get(store_key)
+    runtime = _message_runtime(hass, entry)
+    store_key = _message_store_key(key, target_type, target_id, emergency)
     api = _api(hass, entry)
 
-    if previous and previous.get("message_id"):
-        try:
-            result = await api.edit_message(
-                message_id=str(previous["message_id"]),
-                text=message,
-                fmt=fmt,
-                notify=notify,
-                buttons=buttons,
-            )
-            previous["message"] = message
-            previous["result"] = result
-            return result
-        except Exception as err:
-            _LOGGER.warning(
-                "Не удалось обновить MAX сообщение key=%s target=%s:%s: %s. Будет создано новое.",
-                key,
-                target_type,
-                target_id,
-                err,
-            )
+    async with runtime["message_lock"]:
+        previous_id = runtime["message_map"].get(store_key)
+        if previous_id:
+            try:
+                return await api.edit_message(
+                    message_id=previous_id,
+                    text=message,
+                    fmt=fmt,
+                    notify=notify,
+                    buttons=buttons,
+                )
+            except Exception as err:
+                _LOGGER.warning(
+                    "Не удалось обновить MAX сообщение key=%s target=%s:%s: %s. Будет создано новое.",
+                    key,
+                    target_type,
+                    target_id,
+                    err,
+                )
 
-    result = await _send_message(
-        hass,
-        entry,
-        message=message,
-        target_type=target_type,
-        target_id=target_id,
-        fmt=fmt,
-        notify=notify,
-        buttons=buttons,
-        disable_link_preview=disable_link_preview,
-        emergency=emergency,
-    )
-    message_id = _extract_message_id(result)
-    if message_id:
-        store[store_key] = {
-            "message_id": message_id,
-            "message": message,
-            "target_type": target_type,
-            "target_id": int(target_id),
-        }
-    return result
+        result = await _send_message(
+            hass,
+            entry,
+            message=message,
+            target_type=target_type,
+            target_id=target_id,
+            fmt=fmt,
+            notify=notify,
+            buttons=buttons,
+            disable_link_preview=disable_link_preview,
+            emergency=emergency,
+        )
+        await _remember_message_id(runtime, store_key, result)
+        return result
 
 
 async def _send_or_replace(
@@ -573,48 +627,40 @@ async def _send_or_replace(
     emergency: bool,
 ) -> dict[str, Any] | None:
     """Send a fresh message, then remove the previous message for this key."""
-    store = _message_store(hass)
-    store_key = _message_store_key(entry, key, target_type, target_id)
-    previous = store.get(store_key)
+    runtime = _message_runtime(hass, entry)
+    store_key = _message_store_key(key, target_type, target_id, emergency)
     api = _api(hass, entry)
 
-    result = await _send_message(
-        hass,
-        entry,
-        message=message,
-        target_type=target_type,
-        target_id=target_id,
-        fmt=fmt,
-        notify=notify,
-        buttons=buttons,
-        disable_link_preview=disable_link_preview,
-        emergency=emergency,
-    )
-    new_message_id = _extract_message_id(result)
+    async with runtime["message_lock"]:
+        previous_id = runtime["message_map"].get(store_key)
+        result = await _send_message(
+            hass,
+            entry,
+            message=message,
+            target_type=target_type,
+            target_id=target_id,
+            fmt=fmt,
+            notify=notify,
+            buttons=buttons,
+            disable_link_preview=disable_link_preview,
+            emergency=emergency,
+        )
+        new_message_id = await _remember_message_id(runtime, store_key, result)
 
-    if new_message_id:
-        store[store_key] = {
-            "message_id": new_message_id,
-            "message": message,
-            "target_type": target_type,
-            "target_id": int(target_id),
-        }
+        if previous_id and new_message_id and previous_id != new_message_id:
+            try:
+                await api.delete_message(message_id=previous_id)
+            except Exception as err:
+                _LOGGER.warning(
+                    "Новое MAX сообщение отправлено, но старое не удалено key=%s target=%s:%s old_mid=%s: %s",
+                    key,
+                    target_type,
+                    target_id,
+                    previous_id,
+                    err,
+                )
 
-    old_message_id = str((previous or {}).get("message_id") or "").strip()
-    if old_message_id and new_message_id and old_message_id != new_message_id:
-        try:
-            await api.delete_message(message_id=old_message_id)
-        except Exception as err:
-            _LOGGER.warning(
-                "Новое MAX сообщение отправлено, но старое не удалено key=%s target=%s:%s old_mid=%s: %s",
-                key,
-                target_type,
-                target_id,
-                old_message_id,
-                err,
-            )
-
-    return result
+        return result
 
 
 async def _broadcast_message(
@@ -844,7 +890,6 @@ async def _broadcast_video(
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN].setdefault("message_store", {})
     _register_services(hass)
     return True
 
@@ -852,21 +897,38 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     cfg = _conf(entry)
     api = SlavaMaxApi(async_get_clientsession(hass), cfg[CONF_TOKEN])
+    message_store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.message_keys")
+    stored = await message_store.async_load()
+    message_map = stored if isinstance(stored, dict) else {}
 
     runtime: dict[str, Any] = {
         "api": api,
         "marker": None,
         "task": None,
         "stop": None,
+        "message_store": message_store,
+        "message_map": {
+            key: str(value)
+            for key, value in message_map.items()
+            if isinstance(key, str)
+            and isinstance(value, (str, int))
+            and not isinstance(value, bool)
+            and str(value).strip()
+        },
+        "message_lock": asyncio.Lock(),
     }
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime
 
     if _to_bool(cfg.get(CONF_POLLING), True):
         stop_event = asyncio.Event()
         runtime["stop"] = stop_event
-        runtime["task"] = hass.async_create_task(
+        # Polling lasts for the entry's lifetime; a normal tracked task makes
+        # Home Assistant wait for it while finishing startup.
+        runtime["task"] = entry.async_create_background_task(
+            hass,
             _poll_loop(hass, entry, api, runtime, stop_event),
             f"{DOMAIN}_{entry.entry_id}_poll",
+            eager_start=False,
         )
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -927,44 +989,45 @@ async def _poll_loop(
             delay = min(delay * 2, 60)
 
 
-def _extract_user(update: dict[str, Any]) -> tuple[int | None, str | None]:
-    candidates: list[dict[str, Any]] = []
-
-    user_locale = update.get("user_locale")
-    if isinstance(user_locale, dict):
-        candidates.append(user_locale)
-
+def _update_message(update: dict[str, Any]) -> dict[str, Any]:
     message = update.get("message")
     if isinstance(message, dict):
-        sender = message.get("sender")
-        if isinstance(sender, dict):
-            candidates.append(sender)
-        recipient = message.get("recipient")
-        if isinstance(recipient, dict):
-            candidates.append(recipient)
-
+        return message
     callback = update.get("callback")
-    if isinstance(callback, dict):
-        callback_user = callback.get("user")
-        if isinstance(callback_user, dict):
-            candidates.append(callback_user)
+    if isinstance(callback, dict) and isinstance(callback.get("message"), dict):
+        return callback["message"]
+    return {}
 
-    for item in candidates:
-        raw_id = item.get("user_id")
-        if raw_id is None:
-            continue
-        try:
-            user_id = int(raw_id)
-        except (TypeError, ValueError):
-            continue
-        name = (
-            item.get("name")
-            or item.get("first_name")
-            or item.get("username")
-        )
-        return user_id, str(name) if name else None
 
-    return None, None
+def _update_user(update: dict[str, Any]) -> dict[str, Any]:
+    """Return the actor, never the bot/recipient of the button's original message."""
+    if _event_type(update) == "callback":
+        callback = update.get("callback")
+        user = callback.get("user") if isinstance(callback, dict) else None
+        return user if isinstance(user, dict) else {}
+
+    user = update.get("user")
+    if isinstance(user, dict):
+        return user
+    message = _update_message(update)
+    for field in ("sender", "user"):
+        user = message.get(field)
+        if isinstance(user, dict):
+            return user
+    return {}
+
+
+def _extract_user(update: dict[str, Any]) -> tuple[int | None, str | None]:
+    user = _update_user(update)
+    raw_id = user.get("user_id", user.get("id"))
+    if isinstance(raw_id, bool) or not isinstance(raw_id, (str, int)):
+        return None, None
+    try:
+        user_id = int(raw_id)
+    except ValueError:
+        return None, None
+    name = user.get("name") or user.get("first_name") or user.get("username")
+    return user_id, str(name) if name else None
 
 
 def _event_type(update: dict[str, Any]) -> str:
@@ -980,8 +1043,12 @@ def _event_type(update: dict[str, Any]) -> str:
 def _callback_payload(update: dict[str, Any]) -> tuple[str | None, str | None]:
     callback = update.get("callback")
     if not isinstance(callback, dict):
-        return None, None
+        callback = {}
     payload = callback.get("payload")
+    if payload is None:
+        payload = callback.get("data")
+    if payload is None:
+        payload = update.get("payload")
     callback_id = callback.get("callback_id") or callback.get("id")
     return (
         str(payload) if payload is not None else None,
@@ -990,15 +1057,13 @@ def _callback_payload(update: dict[str, Any]) -> tuple[str | None, str | None]:
 
 
 def _message_text(update: dict[str, Any]) -> str | None:
-    message = update.get("message")
-    if not isinstance(message, dict):
-        return None
+    message = _update_message(update)
     body = message.get("body")
     if isinstance(body, dict):
         text = body.get("text")
         if text is not None:
             return str(text)
-    text = message.get("text")
+    text = message.get("text", update.get("text"))
     return str(text) if text is not None else None
 
 
@@ -1009,7 +1074,11 @@ def _handle_update(hass: HomeAssistant, entry: ConfigEntry, update: dict[str, An
     payload, callback_id = _callback_payload(update)
     text = _message_text(update)
 
-    if user_id is not None and not _is_allowed(cfg, user_id):
+    if user_id is None:
+        _LOGGER.debug("Пропуск MAX события %s: пользователь не определён", event_type)
+        return
+
+    if not _is_allowed(cfg, user_id):
         hass.bus.async_fire(
             EVENT_ACCESS_REQUEST,
             {
@@ -1023,16 +1092,48 @@ def _handle_update(hass: HomeAssistant, entry: ConfigEntry, update: dict[str, An
         )
         return
 
+    user = _update_user(update)
+    message = _update_message(update)
+    recipient = message.get("recipient")
+    if not isinstance(recipient, dict):
+        recipient = {}
+    profile = _configured_users(cfg).get(user_id, {})
+    command = None
+    args = ""
+    if isinstance(text, str) and text.startswith("/"):
+        parts = text[1:].strip().split(maxsplit=1)
+        if parts:
+            command = parts[0].split("@", 1)[0].lower()
+            if len(parts) > 1:
+                args = parts[1]
+
     hass.bus.async_fire(
         EVENT_NAME,
         {
             "config_entry_id": entry.entry_id,
+            # Keep both the original event contract and the 0.7.7 alias.
+            "type": event_type,
             "event_type": event_type,
+            "update_type": update.get("update_type") or update.get("type") or "update",
+            "timestamp": update.get("timestamp"),
+            "authorized": True,
+            "permissions": sorted(_permissions(cfg, user_id)),
+            "access_name": profile.get(CONF_USER_NAME, ""),
             "user_id": user_id,
             "user_name": user_name,
+            "name": user_name,
+            "username": user.get("username"),
+            "chat_id": (
+                update.get("chat_id")
+                or message.get("chat_id")
+                or recipient.get("chat_id")
+            ),
             "text": text,
+            "command": command,
+            "args": args,
             "payload": payload,
             "callback_id": callback_id,
+            "message_id": _extract_message_id(message),
             "raw": update,
         },
     )
@@ -1042,7 +1143,7 @@ def _register_services(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, SERVICE_SEND_MESSAGE):
         return
 
-    entry_selector = vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string
+    entry_selector = vol.Optional(ATTR_CONFIG_ENTRY_ID)
 
     async def handle_send_message(call: ServiceCall) -> None:
         entry = _entry_by_id(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
@@ -1392,7 +1493,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     common_message_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_CHAT_ID): vol.Coerce(int),
             vol.Optional(ATTR_USER_ID): vol.Coerce(int),
@@ -1405,7 +1506,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     edit_message_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_MESSAGE_ID): cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_FORMAT, default="markdown"): cv.string,
@@ -1417,7 +1518,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     send_or_update_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_KEY): cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_CHAT_ID): vol.Coerce(int),
@@ -1432,7 +1533,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     send_or_replace_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_KEY): cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_CHAT_ID): vol.Coerce(int),
@@ -1447,7 +1548,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     emergency_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_FORMAT, default="markdown"): cv.string,
             vol.Optional(ATTR_NOTIFY, default=True): cv.boolean,
@@ -1458,7 +1559,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     broadcast_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_USER_IDS): object,
             vol.Optional(ATTR_REQUIRED_PERMISSION): cv.string,
@@ -1471,7 +1572,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     broadcast_or_update_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_KEY): cv.string,
             vol.Required(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_USER_IDS): object,
@@ -1485,7 +1586,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     image_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_FILE_PATH): cv.string,
             vol.Optional(ATTR_MESSAGE, default=""): cv.string,
             vol.Optional(ATTR_CHAT_ID): vol.Coerce(int),
@@ -1499,7 +1600,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     emergency_image_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_FILE_PATH): cv.string,
             vol.Optional(ATTR_MESSAGE, default=""): cv.string,
             vol.Optional(ATTR_FORMAT, default="markdown"): cv.string,
@@ -1511,7 +1612,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     broadcast_image_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_FILE_PATH): cv.string,
             vol.Optional(ATTR_MESSAGE, default=""): cv.string,
             vol.Optional(ATTR_USER_IDS): object,
@@ -1528,7 +1629,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     callback_schema = vol.Schema(
         {
-            entry_selector,
+            entry_selector: cv.string,
             vol.Required(ATTR_CALLBACK_ID): cv.string,
             vol.Optional(ATTR_MESSAGE): cv.string,
             vol.Optional(ATTR_FORMAT, default="markdown"): cv.string,
