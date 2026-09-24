@@ -922,9 +922,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if _to_bool(cfg.get(CONF_POLLING), True):
         stop_event = asyncio.Event()
         runtime["stop"] = stop_event
-        runtime["task"] = hass.async_create_task(
+        # Polling lasts for the entry's lifetime; a normal tracked task makes
+        # Home Assistant wait for it while finishing startup.
+        runtime["task"] = entry.async_create_background_task(
+            hass,
             _poll_loop(hass, entry, api, runtime, stop_event),
             f"{DOMAIN}_{entry.entry_id}_poll",
+            eager_start=False,
         )
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
